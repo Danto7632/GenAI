@@ -1,0 +1,265 @@
+.furniture-placer {
+  display: flex;
+  height: 100vh;
+  font-family: 'Arial', sans-serif;
+}
+
+.sidebar {
+  width: 300px;
+  background: #f5f5f5;
+  border-right: 1px solid #ddd;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.sidebar h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 1.2rem;
+  border-bottom: 2px solid #4CAF50;
+  padding-bottom: 10px;
+}
+
+/* 카테고리 탭 */
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 20px;
+}
+
+.category-tab {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.3s ease;
+}
+
+.category-tab:hover {
+  background: #e8f5e8;
+}
+
+.category-tab.active {
+  background: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+/* 가구 아이템 */
+.furniture-items {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 30px;
+}
+
+.furniture-item {
+  background: white;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  padding: 15px;
+  text-align: center;
+  cursor: grab;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.furniture-item:hover {
+  border-color: #4CAF50;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.furniture-item:active {
+  cursor: grabbing;
+}
+
+.furniture-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+}
+
+.furniture-name {
+  font-size: 0.8rem;
+  color: #666;
+  word-break: keep-all;
+}
+
+/* 가구 컨트롤 */
+.furniture-controls {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  padding: 15px;
+  margin-top: 20px;
+}
+
+.furniture-controls h4 {
+  margin: 0 0 10px 0;
+  color: #333;
+}
+
+.furniture-controls p {
+  margin: 0 0 15px 0;
+  color: #666;
+  font-weight: bold;
+}
+
+.control-btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.control-btn:hover {
+  background: #f0f0f0;
+}
+
+.control-btn.delete {
+  background: #ff4444;
+  color: white;
+  border-color: #ff4444;
+}
+
+.control-btn.delete:hover {
+  background: #cc3333;
+}
+
+/* 메인 영역 */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+}
+
+.canvas-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #fafafa;
+  border: 2px dashed #ddd;
+  border-radius: 10px;
+  position: relative;
+  overflow: hidden;
+}
+
+.room-canvas {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  position: relative;
+  background-color: #fff;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* 배치된 가구 */
+.placed-furniture {
+  border: 2px solid transparent;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.placed-furniture:hover {
+  border-color: #4CAF50;
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.placed-furniture.selected {
+  border-color: #2196F3;
+  background: rgba(33, 150, 243, 0.2);
+  box-shadow: 0 0 10px rgba(33, 150, 243, 0.5);
+}
+
+.furniture-visual {
+  font-size: 1.5rem;
+  pointer-events: none;
+}
+
+/* 액션 버튼 */
+.action-buttons {
+  display: flex;
+  gap: 15px;
+  margin-top: 20px;
+  justify-content: center;
+}
+
+.action-btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 25px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.action-btn.save {
+  background: #4CAF50;
+  color: white;
+}
+
+.action-btn.save:hover {
+  background: #45a049;
+  transform: translateY(-2px);
+}
+
+.action-btn.generate {
+  background: #FF9800;
+  color: white;
+}
+
+.action-btn.generate:hover {
+  background: #e68900;
+  transform: translateY(-2px);
+}
+
+.action-btn.ai {
+  background: #9C27B0;
+  color: white;
+}
+
+.action-btn.ai:hover {
+  background: #8e24aa;
+  transform: translateY(-2px);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .furniture-placer {
+    flex-direction: column;
+  }
+  
+  .sidebar {
+    width: 100%;
+    height: 300px;
+  }
+  
+  .furniture-items {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .action-btn {
+    width: 200px;
+  }
+}
