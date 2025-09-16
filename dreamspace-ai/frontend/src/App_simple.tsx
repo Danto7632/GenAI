@@ -79,7 +79,7 @@ const FurnitureItem = styled.div`
   padding: 15px 10px;
   border-radius: 12px;
   text-align: center;
-  cursor: grab;
+  cursor: pointer;
   font-size: 0.9rem;
   font-weight: 500;
   transition: all 0.3s ease;
@@ -88,11 +88,6 @@ const FurnitureItem = styled.div`
   &:hover {
     transform: translateY(-3px);
     box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
-  }
-  
-  &:active {
-    cursor: grabbing;
-    transform: scale(0.95);
   }
 `;
 
@@ -108,6 +103,7 @@ const DesignCanvas = styled.div`
   background-size: 30px 30px;
   overflow: hidden;
   box-shadow: inset 0 4px 20px rgba(0, 0, 0, 0.1);
+  cursor: crosshair;
 `;
 
 const CanvasHeader = styled.div`
@@ -129,7 +125,7 @@ const DroppedFurniture = styled.div<{ x: number; y: number }>`
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 500;
-  cursor: move;
+  cursor: pointer;
   user-select: none;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
   transition: all 0.2s ease;
@@ -155,6 +151,43 @@ const UploadArea = styled.div`
     border-color: #764ba2;
     background: rgba(118, 75, 162, 0.1);
     transform: translateY(-2px);
+  }
+`;
+
+const HiddenInput = styled.input`
+  display: none;
+`;
+
+const UploadedImage = styled.img`
+  max-width: 100%;
+  max-height: 150px;
+  border-radius: 10px;
+  margin-top: 10px;
+  object-fit: cover;
+`;
+
+const GenerateButton = styled.button`
+  width: 100%;
+  padding: 15px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 20px;
+  
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  }
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
   }
 `;
 
@@ -186,7 +219,11 @@ interface DroppedItem {
 
 const App: React.FC = () => {
   const [droppedItems, setDroppedItems] = useState<DroppedItem[]>([]);
-  const [draggedItem, setDraggedItem] = useState<string | null>(null);
+  const [uploadedImage, setUploadedImage] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedFurniture, setSelectedFurniture] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const furnitureCategories = {
     '거실': ['소파', '테이블', '의자', '책장', 'TV'],
@@ -195,37 +232,107 @@ const App: React.FC = () => {
     '화장실': ['세면대', '변기', '샤워부스', '수건걸이', '수납함']
   };
 
-  const handleDragStart = (e: React.DragEvent, furnitureName: string) => {
-    e.dataTransfer.setData('furnitureName', furnitureName);
-    setDraggedItem(furnitureName);
+  // 가구 선택
+  const handleFurnitureSelect = (furnitureName: string) => {
+    setSelectedFurniture(furnitureName);
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const furnitureName = e.dataTransfer.getData('furnitureName');
+  // 캔버스 클릭으로 가구 배치 (위치 보정 적용)
+  const handleCanvasClick = (e: React.MouseEvent) => {
+    if (!selectedFurniture) return;
+
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left - 50;
-    const y = e.clientY - rect.top - 100;
+    const headerHeight = 60; // CanvasHeader의 높이
+    
+    // 배치 위치 보정: 클릭한 위치에서 약간 더 아래로 배치
+    const x = e.clientX - rect.left - 30; // 가구 중앙 정렬
+    const y = e.clientY - rect.top - headerHeight + 20; // 더 아래로 배치되도록 +20 추가
 
     const newItem: DroppedItem = {
       id: Date.now().toString(),
-      name: furnitureName,
-      x: Math.max(10, x),
-      y: Math.max(70, y)
+      name: selectedFurniture,
+      x: Math.max(0, x),
+      y: Math.max(0, y)
     };
 
     setDroppedItems(prev => [...prev, newItem]);
-    setDraggedItem(null);
+    setSelectedFurniture(null); // 배치 후 선택 해제
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-  };
-
+  // 가구 제거 (더블클릭)
   const handleFurnitureClick = (item: DroppedItem, e: React.MouseEvent) => {
-    // 더블클릭으로 가구 제거
-    if (e.detail === 2) {
+    e.stopPropagation(); // 캔버스 클릭 이벤트 방지
+    if (e.detail === 2) { // 더블클릭
       setDroppedItems(prev => prev.filter(i => i.id !== item.id));
+    }
+  };
+
+  // 이미지 업로드
+  const handleImageUpload = async (file: File) => {
+    if (!file) return;
+    
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('http://localhost:5000/api/upload/image', {
+        method: 'POST',
+        body: formData
+      });
+      
+      const result = await response.json();
+      
+      if (response.ok) {
+        setUploadedImage(result.image_url);
+        console.log('분석 결과:', result.analysis);
+      } else {
+        throw new Error(result.error || '업로드 실패');
+      }
+      
+    } catch (error) {
+      console.error('이미지 업로드 오류:', error);
+      alert('이미지 업로드에 실패했습니다: ' + (error as Error).message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+  };
+
+  // AI 인테리어 생성
+  const handleGenerateInterior = async () => {
+    if (!uploadedImage || droppedItems.length === 0) {
+      alert('도면 이미지와 가구 배치가 필요합니다.');
+      return;
+    }
+    
+    setIsGenerating(true);
+    try {
+      // TODO: AI 인테리어 생성 API 호출
+      console.log('AI 인테리어 생성 요청:', {
+        image: uploadedImage,
+        furniture: droppedItems
+      });
+      
+      // 임시로 3초 후 완료
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      alert('AI 인테리어가 생성되었습니다!');
+      
+    } catch (error) {
+      console.error('AI 인테리어 생성 오류:', error);
+      alert('AI 인테리어 생성에 실패했습니다.');
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -238,15 +345,42 @@ const App: React.FC = () => {
         </Header>
         
         <Section>
-          <SectionTitle>📸 방 사진 업로드</SectionTitle>
-          <UploadArea>
-            <UploadIcon>📷</UploadIcon>
-            <UploadText>클릭하여 방 사진을 업로드하세요</UploadText>
+          <SectionTitle>📸 도면 업로드</SectionTitle>
+          <UploadArea onClick={handleUploadClick}>
+            {isUploading ? (
+              <>
+                <UploadIcon>⏳</UploadIcon>
+                <UploadText>업로드 중...</UploadText>
+              </>
+            ) : uploadedImage ? (
+              <>
+                <UploadedImage src={uploadedImage} alt="업로드된 도면" />
+                <UploadText>도면이 업로드되었습니다!</UploadText>
+              </>
+            ) : (
+              <>
+                <UploadIcon>📷</UploadIcon>
+                <UploadText>클릭하여 집 도면을 업로드하세요</UploadText>
+              </>
+            )}
           </UploadArea>
+          <HiddenInput
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="image/*"
+          />
         </Section>
 
         <Section>
-          <SectionTitle>🪑 가구 라이브러리</SectionTitle>
+          <SectionTitle>🪑 가구 선택</SectionTitle>
+          {selectedFurniture && (
+            <div style={{ padding: '10px', background: '#e3f2fd', borderRadius: '8px', marginBottom: '15px', textAlign: 'center' }}>
+              <strong>선택됨: {selectedFurniture}</strong>
+              <br />
+              <small>캔버스를 클릭하여 배치하세요</small>
+            </div>
+          )}
           {Object.entries(furnitureCategories).map(([category, items]) => (
             <div key={category}>
               <CategoryTitle>{category}</CategoryTitle>
@@ -254,8 +388,12 @@ const App: React.FC = () => {
                 {items.map((item) => (
                   <FurnitureItem
                     key={item}
-                    draggable
-                    onDragStart={(e) => handleDragStart(e, item)}
+                    onClick={() => handleFurnitureSelect(item)}
+                    style={{
+                      background: selectedFurniture === item 
+                        ? 'linear-gradient(135deg, #4caf50, #8bc34a)' 
+                        : 'linear-gradient(135deg, #667eea, #764ba2)'
+                    }}
                   >
                     {item}
                   </FurnitureItem>
@@ -265,23 +403,18 @@ const App: React.FC = () => {
           ))}
         </Section>
 
-        <Section>
-          <SectionTitle>💡 사용법</SectionTitle>
-          <div style={{ color: '#666', fontSize: '0.9rem', lineHeight: '1.5' }}>
-            • 가구를 캔버스로 드래그하여 배치<br/>
-            • 배치된 가구를 더블클릭하면 제거<br/>
-            • 게임처럼 자유롭게 꾸며보세요!
-          </div>
-        </Section>
+        <GenerateButton 
+          onClick={handleGenerateInterior}
+          disabled={!uploadedImage || droppedItems.length === 0 || isGenerating}
+        >
+          {isGenerating ? '🎨 AI 인테리어 생성 중...' : '🎨 AI 인테리어 생성'}
+        </GenerateButton>
       </Sidebar>
 
       <MainArea>
-        <DesignCanvas
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-        >
+        <DesignCanvas onClick={handleCanvasClick}>
           <CanvasHeader>
-            🎨 인테리어 디자인 캔버스 - 가구를 드래그해서 배치해보세요!
+            🎨 인테리어 디자인 캔버스 - 가구를 선택하고 클릭하여 배치하세요! (더블클릭으로 제거)
           </CanvasHeader>
           
           {droppedItems.map((item) => (
@@ -295,20 +428,6 @@ const App: React.FC = () => {
               {item.name}
             </DroppedFurniture>
           ))}
-          
-          {droppedItems.length === 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              color: '#999',
-              fontSize: '1.2rem',
-              fontWeight: '500'
-            }}>
-              왼쪽에서 가구를 드래그해서 여기에 배치해보세요! 🪑✨
-            </div>
-          )}
         </DesignCanvas>
       </MainArea>
     </AppContainer>
