@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './App.css';
 
 const App = () => {
@@ -11,11 +11,38 @@ const App = () => {
   const [isResizing, setIsResizing] = useState(false);
   const [isRotating, setIsRotating] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [rotationStart, setRotationStart] = useState({ angle: 0, initialRotation: 0 });
+  const [resizeHandle, setResizeHandle] = useState(null); // 어떤 핸들을 드래그하는지
+  const [initialBounds, setInitialBounds] = useState(null); // 크기조정 시작 시 경계
+  const [isShiftPressed, setIsShiftPressed] = useState(false); // Shift 키 상태
   const [customFurniture, setCustomFurniture] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const canvasRef = useRef(null);
 
   const furnitureTypes = ['소파', '테이블', '의자', '침대', '옷장', '책장'];
+
+  // Shift 키 이벤트 리스너
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(true);
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
 
   // 사용자 정의 가구 추가
   const addCustomFurniture = () => {
@@ -101,22 +128,47 @@ const App = () => {
   };
 
   // 드래그 시작
-  const handleMouseDown = (e, furnitureId, action = 'drag') => {
+  const handleMouseDown = (e, furnitureId, action = 'drag', handleType = null) => {
     e.stopPropagation();
     setSelectedFurniture(furnitureId);
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const currentX = e.clientX - rect.left;
+    const currentY = e.clientY - rect.top;
     
     if (action === 'drag') {
       setIsDragging(true);
     } else if (action === 'resize') {
       setIsResizing(true);
+      setResizeHandle(handleType);
+      // 크기조정 시작 시 현재 경계 저장
+      const selectedItem = furniture.find(f => f.id === furnitureId);
+      if (selectedItem) {
+        setInitialBounds({
+          x: selectedItem.x,
+          y: selectedItem.y,
+          width: selectedItem.width,
+          height: selectedItem.height
+        });
+      }
     } else if (action === 'rotate') {
       setIsRotating(true);
+      // 회전 시작 시 초기 각도와 현재 회전값 저장
+      const selectedItem = furniture.find(f => f.id === furnitureId);
+      if (selectedItem) {
+        const centerX = selectedItem.x + selectedItem.width / 2;
+        const centerY = selectedItem.y + selectedItem.height / 2;
+        const initialAngle = Math.atan2(currentY - centerY, currentX - centerX) * 180 / Math.PI;
+        setRotationStart({
+          angle: initialAngle,
+          initialRotation: selectedItem.rotation
+        });
+      }
     }
 
-    const rect = canvasRef.current.getBoundingClientRect();
     setDragStart({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      x: currentX,
+      y: currentY
     });
   };
 
@@ -137,20 +189,120 @@ const App = () => {
             y: item.y + (currentY - dragStart.y)
           };
         } else if (isResizing) {
-          const newWidth = Math.max(20, item.width + (currentX - dragStart.x));
-          const newHeight = Math.max(15, item.height + (currentY - dragStart.y));
-          return { ...item, width: newWidth, height: newHeight };
+          const deltaX = currentX - dragStart.x;
+          const deltaY = currentY - dragStart.y;
+          
+          let newX = item.x;
+          let newY = item.y;
+          let newWidth = item.width;
+          let newHeight = item.height;
+          
+          // 핸들별로 앵커 기반 크기조정
+          switch (resizeHandle) {
+            case 'nw': // 좌상단: 우하단 고정
+              if (isShiftPressed) {
+                // 비례 크기조정
+                const scale = Math.min(
+                  (initialBounds.width - deltaX) / initialBounds.width,
+                  (initialBounds.height - deltaY) / initialBounds.height
+                );
+                newWidth = Math.max(20, initialBounds.width * Math.max(0.1, scale));
+                newHeight = Math.max(15, initialBounds.height * Math.max(0.1, scale));
+              } else {
+                newWidth = Math.max(20, initialBounds.width - deltaX);
+                newHeight = Math.max(15, initialBounds.height - deltaY);
+              }
+              newX = initialBounds.x + initialBounds.width - newWidth;
+              newY = initialBounds.y + initialBounds.height - newHeight;
+              break;
+            case 'ne': // 우상단: 좌하단 고정
+              if (isShiftPressed) {
+                const scale = Math.min(
+                  (initialBounds.width + deltaX) / initialBounds.width,
+                  (initialBounds.height - deltaY) / initialBounds.height
+                );
+                newWidth = Math.max(20, initialBounds.width * Math.max(0.1, scale));
+                newHeight = Math.max(15, initialBounds.height * Math.max(0.1, scale));
+              } else {
+                newWidth = Math.max(20, initialBounds.width + deltaX);
+                newHeight = Math.max(15, initialBounds.height - deltaY);
+              }
+              newX = initialBounds.x;
+              newY = initialBounds.y + initialBounds.height - newHeight;
+              break;
+            case 'sw': // 좌하단: 우상단 고정
+              if (isShiftPressed) {
+                const scale = Math.min(
+                  (initialBounds.width - deltaX) / initialBounds.width,
+                  (initialBounds.height + deltaY) / initialBounds.height
+                );
+                newWidth = Math.max(20, initialBounds.width * Math.max(0.1, scale));
+                newHeight = Math.max(15, initialBounds.height * Math.max(0.1, scale));
+              } else {
+                newWidth = Math.max(20, initialBounds.width - deltaX);
+                newHeight = Math.max(15, initialBounds.height + deltaY);
+              }
+              newX = initialBounds.x + initialBounds.width - newWidth;
+              newY = initialBounds.y;
+              break;
+            case 'se': // 우하단: 좌상단 고정
+              if (isShiftPressed) {
+                const scale = Math.min(
+                  (initialBounds.width + deltaX) / initialBounds.width,
+                  (initialBounds.height + deltaY) / initialBounds.height
+                );
+                newWidth = Math.max(20, initialBounds.width * Math.max(0.1, scale));
+                newHeight = Math.max(15, initialBounds.height * Math.max(0.1, scale));
+              } else {
+                newWidth = Math.max(20, initialBounds.width + deltaX);
+                newHeight = Math.max(15, initialBounds.height + deltaY);
+              }
+              newX = initialBounds.x;
+              newY = initialBounds.y;
+              break;
+            case 'n': // 상단 중앙: 하단 고정
+              newHeight = Math.max(15, initialBounds.height - deltaY);
+              newX = initialBounds.x;
+              newY = initialBounds.y + initialBounds.height - newHeight;
+              newWidth = initialBounds.width;
+              break;
+            case 's': // 하단 중앙: 상단 고정
+              newHeight = Math.max(15, initialBounds.height + deltaY);
+              newX = initialBounds.x;
+              newY = initialBounds.y;
+              newWidth = initialBounds.width;
+              break;
+            case 'w': // 좌측 중앙: 우측 고정
+              newWidth = Math.max(20, initialBounds.width - deltaX);
+              newX = initialBounds.x + initialBounds.width - newWidth;
+              newY = initialBounds.y;
+              newHeight = initialBounds.height;
+              break;
+            case 'e': // 우측 중앙: 좌측 고정
+              newWidth = Math.max(20, initialBounds.width + deltaX);
+              newX = initialBounds.x;
+              newY = initialBounds.y;
+              newHeight = initialBounds.height;
+              break;
+          }
+          
+          return { ...item, x: newX, y: newY, width: newWidth, height: newHeight };
         } else if (isRotating) {
           const centerX = item.x + item.width / 2;
           const centerY = item.y + item.height / 2;
-          const angle = Math.atan2(currentY - centerY, currentX - centerX);
-          return { ...item, rotation: (angle * 180 / Math.PI) + 90 };
+          const currentAngle = Math.atan2(currentY - centerY, currentX - centerX) * 180 / Math.PI;
+          const angleDiff = currentAngle - rotationStart.angle;
+          const newRotation = rotationStart.initialRotation + angleDiff;
+          return { ...item, rotation: newRotation };
         }
       }
       return item;
     }));
 
-    setDragStart({ x: currentX, y: currentY });
+    // 드래그일 때만 dragStart 업데이트 (크기조정과 회전은 고정점 기준)
+    if (isDragging) {
+      setDragStart({ x: currentX, y: currentY });
+    }
   };
 
   // 마우스 업
@@ -158,6 +310,8 @@ const App = () => {
     setIsDragging(false);
     setIsResizing(false);
     setIsRotating(false);
+    setResizeHandle(null);
+    setInitialBounds(null);
   };
 
   // 가구 삭제
@@ -471,23 +625,26 @@ const App = () => {
                   {/* 선택된 가구의 컨트롤 핸들들 */}
                   {selectedFurniture === item.id && (
                     <>
-                      {/* 크기 조정 핸들 (우하단) */}
+                      {/* 8개 크기 조정 핸들 */}
+                      
+                      {/* 모서리 핸들들 */}
+                      {/* 좌상단 (NW) */}
                       <div
                         style={{
                           position: 'absolute',
-                          bottom: '-4px',
-                          right: '-4px',
+                          top: '-4px',
+                          left: '-4px',
                           width: '8px',
                           height: '8px',
-                          background: '#ff9800',
+                          background: '#2196f3',
                           cursor: 'nw-resize',
                           borderRadius: '2px',
                           border: '1px solid white'
                         }}
-                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize')}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 'nw')}
                       />
                       
-                      {/* 회전 핸들 (우상단) */}
+                      {/* 우상단 (NE) */}
                       <div
                         style={{
                           position: 'absolute',
@@ -495,10 +652,128 @@ const App = () => {
                           right: '-4px',
                           width: '8px',
                           height: '8px',
+                          background: '#2196f3',
+                          cursor: 'ne-resize',
+                          borderRadius: '2px',
+                          border: '1px solid white'
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 'ne')}
+                      />
+                      
+                      {/* 좌하단 (SW) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          left: '-4px',
+                          width: '8px',
+                          height: '8px',
+                          background: '#2196f3',
+                          cursor: 'sw-resize',
+                          borderRadius: '2px',
+                          border: '1px solid white'
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 'sw')}
+                      />
+                      
+                      {/* 우하단 (SE) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          right: '-4px',
+                          width: '8px',
+                          height: '8px',
+                          background: '#2196f3',
+                          cursor: 'se-resize',
+                          borderRadius: '2px',
+                          border: '1px solid white'
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 'se')}
+                      />
+                      
+                      {/* 가장자리 중앙 핸들들 */}
+                      {/* 상단 중앙 (N) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '-4px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: '8px',
+                          height: '8px',
+                          background: '#2196f3',
+                          cursor: 'n-resize',
+                          borderRadius: '2px',
+                          border: '1px solid white'
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 'n')}
+                      />
+                      
+                      {/* 하단 중앙 (S) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          bottom: '-4px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: '8px',
+                          height: '8px',
+                          background: '#2196f3',
+                          cursor: 's-resize',
+                          borderRadius: '2px',
+                          border: '1px solid white'
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 's')}
+                      />
+                      
+                      {/* 좌측 중앙 (W) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '-4px',
+                          transform: 'translateY(-50%)',
+                          width: '8px',
+                          height: '8px',
+                          background: '#2196f3',
+                          cursor: 'w-resize',
+                          borderRadius: '2px',
+                          border: '1px solid white'
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 'w')}
+                      />
+                      
+                      {/* 우측 중앙 (E) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          right: '-4px',
+                          transform: 'translateY(-50%)',
+                          width: '8px',
+                          height: '8px',
+                          background: '#2196f3',
+                          cursor: 'e-resize',
+                          borderRadius: '2px',
+                          border: '1px solid white'
+                        }}
+                        onMouseDown={(e) => handleMouseDown(e, item.id, 'resize', 'e')}
+                      />
+                      
+                      {/* 회전 핸들 (상단 중앙 위쪽) */}
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '-20px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          width: '12px',
+                          height: '12px',
                           background: '#4caf50',
                           cursor: 'crosshair',
                           borderRadius: '50%',
-                          border: '1px solid white'
+                          border: '2px solid white'
                         }}
                         onMouseDown={(e) => handleMouseDown(e, item.id, 'rotate')}
                       />
