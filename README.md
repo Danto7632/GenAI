@@ -88,7 +88,13 @@ cp .env.example .env
 # Flask 앱 실행
 python app.py
 ```
-백엔드 서버가 `http://localhost:5000`에서 실행됩니다.
+
+**🧹 자동 파일 관리**
+- 서버 시작 시 `uploads/` 폴더 자동 정리
+- 24시간 이상 된 파일들 주기적 삭제
+- 저장공간 효율적 관리
+
+백엔드 서버가 `http://localhost:5001`에서 실행됩니다. (AirPlay 충돌 방지를 위해 5001 포트 사용)
 
 #### ⚛️ 프론트엔드 설정 (React)
 새 터미널 창을 열고:

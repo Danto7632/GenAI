@@ -15,6 +15,8 @@ const App = () => {
   const [resizeHandle, setResizeHandle] = useState(null); // 어떤 핸들을 드래그하는지
   const [initialBounds, setInitialBounds] = useState(null); // 크기조정 시작 시 경계
   const [isShiftPressed, setIsShiftPressed] = useState(false); // Shift 키 상태
+  const [generatedImage, setGeneratedImage] = useState(null); // AI 생성된 이미지
+  const [showResult, setShowResult] = useState(false); // 결과 표시 여부
   const [customFurniture, setCustomFurniture] = useState('');
   const [showCustomInput, setShowCustomInput] = useState(false);
   const canvasRef = useRef(null);
@@ -377,6 +379,12 @@ const App = () => {
       
       if (result.success) {
         setMessage(`✅ AI 생성 완료! ID: ${result.generation_id}`);
+        
+        // 생성된 이미지가 있으면 표시
+        if (result.generated_image) {
+          setGeneratedImage(`http://localhost:5001${result.generated_image}`);
+          setShowResult(true);
+        }
       } else {
         setMessage(`❌ AI 생성 실패: ${result.error || '알 수 없는 오류'}`);
       }
@@ -815,6 +823,145 @@ const App = () => {
           </div>
         )}
       </div>
+      
+      {/* AI 생성 결과 표시 */}
+      {showResult && generatedImage && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'rgba(0,0,0,0.8)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            padding: '20px',
+            maxWidth: '90%',
+            maxHeight: '90%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center'
+          }}>
+            <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>🤖 AI 생성 결과</h2>
+            
+            {/* 원본과 결과 비교 */}
+            <div style={{
+              display: 'flex',
+              gap: '20px',
+              marginBottom: '20px',
+              flexWrap: 'wrap',
+              justifyContent: 'center'
+            }}>
+              {/* 원본 캔버스 */}
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>📋 원본 캔버스</h3>
+                {image && (
+                  <img 
+                    src={image} 
+                    alt="원본" 
+                    style={{ 
+                      maxWidth: '300px', 
+                      maxHeight: '300px', 
+                      border: '2px solid #ddd',
+                      borderRadius: '8px'
+                    }} 
+                  />
+                )}
+              </div>
+              
+              {/* AI 생성 결과 */}
+              <div style={{ textAlign: 'center' }}>
+                <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>✨ AI 생성 결과</h3>
+                <img 
+                  src={generatedImage} 
+                  alt="AI 생성 결과" 
+                  style={{ 
+                    maxWidth: '300px', 
+                    maxHeight: '300px', 
+                    border: '2px solid #4CAF50',
+                    borderRadius: '8px'
+                  }} 
+                />
+              </div>
+            </div>
+            
+            {/* 가구 정보 */}
+            <div style={{
+              background: '#f8f9fa',
+              padding: '15px',
+              borderRadius: '8px',
+              marginBottom: '20px',
+              width: '100%',
+              maxWidth: '600px'
+            }}>
+              <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>🪑 배치된 가구</h4>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {furniture.map((item, index) => (
+                  <span
+                    key={index}
+                    style={{
+                      background: '#007bff',
+                      color: 'white',
+                      padding: '4px 8px',
+                      borderRadius: '12px',
+                      fontSize: '12px'
+                    }}
+                  >
+                    {item.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+            
+            {/* 버튼들 */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = generatedImage;
+                  link.download = 'ai_generated_interior.png';
+                  link.click();
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                💾 다운로드
+              </button>
+              
+              <button
+                onClick={() => {
+                  setShowResult(false);
+                  setGeneratedImage(null);
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px'
+                }}
+              >
+                ❌ 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

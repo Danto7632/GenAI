@@ -2,7 +2,10 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 import os
 import uuid
+import glob
+import time
 from werkzeug.utils import secure_filename
+from sana_integration import sana_ai
 
 app = Flask(__name__)
 
@@ -23,12 +26,56 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # 업로드 폴더 생성
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
+def cleanup_uploads_folder():
+    """uploads 폴더 정리 - 서버 시작 시 기존 파일들 삭제"""
+    try:
+        files = glob.glob(os.path.join(UPLOAD_FOLDER, '*'))
+        deleted_count = 0
+        
+        for file_path in files:
+            if os.path.isfile(file_path):
+                os.remove(file_path)
+                deleted_count += 1
+                
+        print(f"🧹 Uploads folder cleaned: {deleted_count} files deleted")
+        return deleted_count
+    except Exception as e:
+        print(f"❌ Failed to clean uploads folder: {e}")
+        return 0
+
+def cleanup_old_files():
+    """24시간 이상 된 파일들만 삭제하는 함수 (옵션)"""
+    try:
+        files = glob.glob(os.path.join(UPLOAD_FOLDER, '*'))
+        current_time = time.time()
+        deleted_count = 0
+        
+        for file_path in files:
+            if os.path.isfile(file_path):
+                file_age = current_time - os.path.getmtime(file_path)
+                # 24시간 = 86400초
+                if file_age > 86400:
+                    os.remove(file_path)
+                    deleted_count += 1
+                    
+        if deleted_count > 0:
+            print(f"🗑️  Cleaned {deleted_count} old files (>24h)")
+        return deleted_count
+    except Exception as e:
+        print(f"❌ Failed to clean old files: {e}")
+        return 0
+
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/')
 def index():
     return jsonify({'message': 'DreamSpace AI Backend', 'status': 'running'})
+
+@app.route('/uploads/<filename>')
+def uploaded_file(filename):
+    """업로드된 파일들을 제공하는 라우트"""
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/upload', methods=['POST', 'OPTIONS'])
 def upload_file():
@@ -61,18 +108,17 @@ def upload_file():
         file.save(file_path)
         print(f"File saved successfully: {file_path}")
         
+        # 업로드 시 오래된 파일들 정리 (24시간 이상 된 파일)
+        cleanup_old_files()
+        
         return jsonify({
             'success': True,
             'filename': unique_filename,
-            'url': f'/files/{unique_filename}'
+            'url': f'/uploads/{unique_filename}'
         })
     except Exception as e:
         print(f"Upload error: {str(e)}")
         return jsonify({'error': f'Upload failed: {str(e)}', 'success': False}), 500
-
-@app.route('/files/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/generate', methods=['POST', 'OPTIONS'])
 def generate_ai():
@@ -108,25 +154,48 @@ def generate_ai():
         except Exception as e:
             print(f"Canvas save error: {e}")
     
-    # 모의 AI 처리
-    generation_id = f"gen_{uuid.uuid4().hex[:8]}"
-    
-    # 가구 정보 로그
-    for item in furniture:
-        print(f"  - {item['name']}: pos({item['x']:.1f},{item['y']:.1f}) size({item['width']:.1f}x{item['height']:.1f}) rot({item['rotation']:.1f}°)")
-    
-    return jsonify({
-        'success': True,
-        'generation_id': generation_id,
-        'message': f'AI generated with {len(furniture)} furniture items from canvas',
-        'canvas_saved': canvas_filename if 'canvas_filename' in locals() else None
-    })
+    # SANA AI를 사용한 인테리어 생성
+    try:
+        generated_filename = sana_ai.generate_interior_from_canvas(
+            canvas_data=canvas_image,
+            furniture_info=furniture,
+            original_image_path=original_image
+        )
+        
+        if generated_filename:
+            generated_url = f"/uploads/{generated_filename}"
+            return jsonify({
+                'success': True,
+                'generation_id': generation_id,
+                'message': f'AI generated with {len(furniture)} furniture items',
+                'canvas_saved': canvas_filename if 'canvas_filename' in locals() else None,
+                'generated_image': generated_url,
+                'generated_filename': generated_filename
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'AI generation failed',
+                'generation_id': generation_id
+            }), 500
+            
+    except Exception as e:
+        print(f"SANA AI generation error: {e}")
+        return jsonify({
+            'success': False,
+            'error': f'AI generation error: {str(e)}',
+            'generation_id': generation_id
+        }), 500
 
 if __name__ == '__main__':
     print("=" * 50)
     print("🚀 DreamSpace AI Backend Starting...")
     print(f"📍 Server URL: http://localhost:5001")
     print(f"📁 Upload folder: {UPLOAD_FOLDER}")
+    
+    # 시작 시 uploads 폴더 정리
+    cleanup_uploads_folder()
+    
     print(f"✅ CORS enabled for localhost:3000")
     print("⚠️  Port 5000 changed to 5001 (AirPlay conflict)")
     print("=" * 50)
