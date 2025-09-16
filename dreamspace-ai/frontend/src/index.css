@@ -1,0 +1,20 @@
+/* 전역 스타일 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background-color: #f0f0f0;
+}
+
+/* 기본 버튼 스타일 */
+button {
+  font-family: inherit;
+}
+
+/* 기본 입력 스타일 */
+input[type="file"] {
+  font-family: inherit;
+}
